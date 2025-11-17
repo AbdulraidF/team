@@ -1,138 +1,167 @@
 package KeuanganApp;
 
-import java.io.*;
+import java.text.NumberFormat;
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-public class ManajerKeuangan {
+public class ManajemenKeuangan {
 
-    private final String NAMA_FILE = "data_keuangan.txt";
-    private double pemasukanBulanan = 0.0;
-    private double batasPengeluaranHarian = 50000.0; // Nilai default
-    private List<Transaksi> daftarTransaksi = new ArrayList<>();
+    private static ManajemenKeuangan instance;
 
-    public LocalDate tanggalTerakhirDiperbarui = LocalDate.now();
+    // --- Data Inti ---
+    private static final double DEFAULT_PEMASUKAN = 2000000.0; // Konstanta untuk nilai default
+    private double pemasukanBulanan = DEFAULT_PEMASUKAN; // Nilai default
+    private double batasPengeluaranHarian = pemasukanBulanan / 30.0;
 
-    public ManajerKeuangan() {
-        bacaDataDariFile();
-        cekResetHarian();
+    // Map untuk menyimpan pengeluaran harian. Key: Tanggal, Value: Total Pengeluaran Hari Itu
+    private final Map<LocalDate, Double> dataMap = new HashMap<>();
+    private String status = "BELUM DI CEK";
+
+    /**
+     * Konstruktor privat untuk implementasi Singleton.
+     */
+    private ManajemenKeuangan() {
+        // Data map secara default kosong.
     }
 
-    // --- METODE I/O ---
-    private void bacaDataDariFile() {
-        try (BufferedReader br = new BufferedReader(new FileReader(NAMA_FILE))) {
-            String baris;
+    /**
+     * Mendapatkan instance tunggal dari ManajemenKeuangan (Singleton).
+     * @return Instance ManajemenKeuangan.
+     */
+    public static ManajemenKeuangan getInstance() {
+        if (instance == null) {
+            instance = new ManajemenKeuangan();
+        }
+        return instance;
+    }
 
-            // Membaca Pemasukan, Batas, dan Tanggal Terakhir
-            if ((baris = br.readLine()) != null) { pemasukanBulanan = Double.parseDouble(baris.split(":")[1].trim()); }
-            if ((baris = br.readLine()) != null) { batasPengeluaranHarian = Double.parseDouble(baris.split(":")[1].trim()); }
-            if ((baris = br.readLine()) != null) { tanggalTerakhirDiperbarui = LocalDate.parse(baris.split(":")[1].trim()); }
+    // --- Getters dan Setters ---
 
-            // Membaca Transaksi Harian
-            while ((baris = br.readLine()) != null) {
-                if (!baris.trim().isEmpty()) {
-                    Transaksi t = Transaksi.fromString(baris);
-                    if (t != null && t.tanggal.isEqual(tanggalTerakhirDiperbarui)) {
-                        daftarTransaksi.add(t);
-                    }
-                }
-            }
-        } catch (FileNotFoundException e) {
-            simpanDataKeFile(); // Membuat file baru jika belum ada
-        } catch (Exception e) {
-            System.err.println("Gagal membaca data: " + e.getMessage());
+    public double getPemasukanBulanan() {
+        return pemasukanBulanan;
+    }
+
+    public void setPemasukanBulanan(double pemasukanBulanan) {
+        this.pemasukanBulanan = pemasukanBulanan;
+        // Batas pengeluaran harian = Pemasukan/30
+        this.batasPengeluaranHarian = pemasukanBulanan / 30.0;
+    }
+
+    public double getBatasPengeluaranHarian() {
+        return batasPengeluaranHarian;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    // --- Logika Pengeluaran Harian ---
+
+    /**
+     * Menambahkan pengeluaran untuk tanggal tertentu.
+     */
+    public void tambahPengeluaran(LocalDate tanggal, double pengeluaranBaru) {
+        // Ambil total pengeluaran yang sudah ada untuk tanggal tersebut
+        double currentTotal = dataMap.getOrDefault(tanggal, 0.0);
+
+        // Tambahkan pengeluaran baru
+        double newTotal = currentTotal + pengeluaranBaru;
+
+        // Simpan kembali ke map
+        dataMap.put(tanggal, newTotal);
+    }
+
+    /**
+     * Mendapatkan total pengeluaran untuk tanggal tertentu.
+     */
+    public double getTotalPengeluaranHariIni(LocalDate tanggal) {
+        return dataMap.getOrDefault(tanggal, 0.0);
+    }
+
+    // --- Logika Monitoring (7 Hari Input Terakhir) ---
+
+    /**
+     * Mendapatkan daftar maksimal 7 tanggal pengeluaran terakhir yang telah diinput.
+     * Tanggal diurutkan dari yang paling lama ke yang paling baru (sesuai urutan grafik).
+     * @return List<LocalDate> yang berisi maksimal 7 tanggal terakhir dengan pengeluaran > 0.
+     */
+    public List<LocalDate> get7HariInputTerakhir() {
+        return dataMap.keySet().stream()
+                // Filter: hanya ambil tanggal yang memiliki pengeluaran > 0
+                .filter(date -> dataMap.get(date) > 0)
+                // Urutkan tanggal dari yang paling lama ke yang paling baru
+                .sorted(Comparator.naturalOrder())
+                // Kumpulkan hasilnya ke List
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toList(),
+                        list -> {
+                            int size = list.size();
+                            if (size <= 7) {
+                                return list; // Jika 7 atau kurang, kembalikan semua
+                            } else {
+                                // Jika lebih dari 7, ambil 7 elemen terakhir
+                                return list.subList(size - 7, size);
+                            }
+                        }
+                ));
+    }
+
+    // --- Logika Status ---
+
+    /**
+     * Memeriksa status pengeluaran harian (Aman/Tidak Aman).
+     */
+    public void cekStatus(LocalDate tanggal) {
+        double totalPengeluaran = getTotalPengeluaranHariIni(tanggal);
+        if (pemasukanBulanan == 0.0) {
+            this.status = "Pemasukan belum diset";
+        } else if (totalPengeluaran <= batasPengeluaranHarian) {
+            this.status = "AMAN";
+        } else {
+            this.status = "TIDAK AMAN (Melebihi Batas)";
         }
     }
 
-    public void simpanDataKeFile() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(NAMA_FILE))) {
-            // Tulis data permanen
-            pw.println("PemasukanBulanan:" + pemasukanBulanan);
-            pw.println("BatasPengeluaranHarian:" + batasPengeluaranHarian);
-            pw.println("TanggalTerakhirDiperbarui:" + LocalDate.now());
-
-            // Tulis Transaksi Harian
-            for (Transaksi t : daftarTransaksi) {
-                if (t.tanggal.isEqual(LocalDate.now())) {
-                    pw.println(t.toString());
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("Gagal menyimpan data: " + e.getMessage());
-        }
-    }
-
-    // --- LOGIKA UTAMA & RESET OTOMATIS ---
-    private void cekResetHarian() {
-        if (!tanggalTerakhirDiperbarui.isEqual(LocalDate.now())) {
-            daftarTransaksi.clear();
-            tanggalTerakhirDiperbarui = LocalDate.now();
-            simpanDataKeFile();
-        }
-    }
-
-    public void tambahPengeluaran(double jumlah, String kategori) {
-        if (jumlah > 0) {
-            daftarTransaksi.add(new Transaksi("Pengeluaran", kategori, jumlah, LocalDate.now()));
-            simpanDataKeFile();
-        }
-    }
-
-    public double hitungPengeluaranHariIni() {
-        double total = 0;
-        for (Transaksi t : daftarTransaksi) {
-            if (t.jenis.equals("Pengeluaran") && t.tanggal.isEqual(LocalDate.now())) {
-                total += t.jumlah;
-            }
-        }
-        return total;
-    }
-
-    // --- FITUR HARD RESET MANUAL ---
+    // --- Logika Reset (BARU) ---
+    /**
+     * Mereset semua data keuangan ke nilai default.
+     * Pemasukan Bulanan diatur ulang menjadi 2.000.000 dan semua data harian dihapus.
+     */
     public void resetSemuaData() {
-        this.pemasukanBulanan = 0.0;
-        this.batasPengeluaranHarian = 50000.0;
-        this.daftarTransaksi.clear();
-        this.tanggalTerakhirDiperbarui = LocalDate.now();
+        this.pemasukanBulanan = DEFAULT_PEMASUKAN;
+        this.batasPengeluaranHarian = DEFAULT_PEMASUKAN / 30.0;
+        this.dataMap.clear(); // Hapus semua data pengeluaran harian
+        this.status = "BELUM DI CEK";
+    }
 
-        File dataFile = new File(NAMA_FILE);
-        if (dataFile.exists()) {
-            dataFile.delete();
+    // --- Utility ---
+
+    /**
+     * Mengubah nilai double menjadi format Rupiah (contoh: Rp 1.000.000).
+     */
+    public static String formatRupiah(double value) {
+        if (value < 0) {
+            value = 0;
         }
-        simpanDataKeFile();
+        Locale localeID = new Locale("in", "ID");
+        NumberFormat formatRupiah = NumberFormat.getCurrencyInstance(localeID);
+        // Hapus simbol mata uang, hanya sisakan "Rp " dan angkanya
+        String formatted = formatRupiah.format(value).replaceAll("Rp\\s*", "Rp ");
+        return formatted.substring(0, formatted.length() - 3); // Hapus ",00"
     }
 
-    // --- FITUR CETAK LAPORAN ---
-    public void cetakLaporanBulanan() throws IOException {
-        String laporanFile = "Laporan_Keuangan_" + LocalDate.now() + ".txt";
-        double pengeluaranKeseluruhan = hitungPengeluaranHariIni();
-        double sisaUang = pemasukanBulanan - pengeluaranKeseluruhan;
-
-        try (PrintWriter pw = new PrintWriter(new FileWriter(laporanFile))) {
-            pw.println("==========================================");
-            pw.println("      LAPORAN KEUANGAN");
-            pw.println("==========================================");
-            pw.println("Pemasukan Bulanan: Rp " + getPemasukanBulanan());
-            pw.println("Batas Pengeluaran Harian: Rp " + batasPengeluaranHarian);
-            pw.println("------------------------------------------");
-            pw.println("Pengeluaran Hari Ini: Rp " + pengeluaranKeseluruhan);
-            pw.println("Sisa Uang (Simulasi): Rp " + sisaUang);
-            pw.println("==========================================");
+    /**
+     * Overload untuk format long/int
+     */
+    public static String formatRupiah(long value) {
+        if (value < 0) {
+            value = 0;
         }
-    }
-
-    // --- GETTER & SETTER ---
-    public double getPemasukanBulanan() { return pemasukanBulanan; }
-    public double getBatasPengeluaranHarian() { return batasPengeluaranHarian; }
-
-    public void setPemasukanBulanan(double pemasukan) {
-        this.pemasukanBulanan = pemasukan;
-        simpanDataKeFile();
-    }
-
-    public void setBatasPengeluaranHarian(double batas) {
-        this.batasPengeluaranHarian = batas;
-        simpanDataKeFile();
+        return formatRupiah((double) value);
     }
 }
