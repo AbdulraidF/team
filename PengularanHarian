@@ -1,0 +1,468 @@
+package KeuanganApp;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException; // Tambahkan import ini
+
+public class PengeluaranHarian extends JFrame {
+
+    // Warna disesuaikan dengan tampilan biru muda/biru yang konsisten
+    private static final Color PRIMARY_COLOR = new Color(173, 215, 230);
+    private static final Color BACKGROUND_START = new Color(240, 248, 255);
+    private static final Color BACKGROUND_END = new Color(200, 220, 240);
+    private static final Color TEXT_FIELD_COLOR = new Color(230, 240, 250);
+
+    private ManajemenKeuangan manager = ManajemenKeuangan.getInstance();
+
+    // UI Components
+    private JTextField inputPemasukan;
+    private JTextField batasPengeluaran;
+    private JTextField inputPengeluaranHarian;
+    private JComboBox<String> kategoriComboBox;
+    private JTextField inputTanggal;
+    private JTextField laporanPemasukan;
+    private JTextField laporanBatasPengeluaran;
+    private JTextField laporanTotalPengeluaran;
+    private JTextField laporanPersentase;
+    private JTextField laporanSisaUang;
+    private JTextField laporanStatus;
+
+    // REVISI: tanggalSaatIni diubah menjadi non-final untuk menyimpan tanggal hari ini sebagai default.
+    private LocalDate tanggalSaatIni = LocalDate.now();
+
+    public PengeluaranHarian() {
+        setTitle("AMESA - Pengeluaran Harian");
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setSize(850, 750);
+        setLocationRelativeTo(null);
+
+        JPanel rootPanel = new GradientPanel(BACKGROUND_START, BACKGROUND_END);
+        rootPanel.setLayout(new BorderLayout());
+        rootPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        rootPanel.add(createMainContentPanel(), BorderLayout.CENTER);
+
+        setContentPane(rootPanel);
+        updateLaporanDisplay(tanggalSaatIni); // Panggil dengan tanggal hari ini saat inisialisasi
+    }
+
+    // --- 1. HEADER (Tidak Diubah) ---
+    private JPanel createHeaderPanel() {
+        // ... (Kode Header tidak berubah) ...
+        JPanel headerContainer = new JPanel();
+        headerContainer.setLayout(new BoxLayout(headerContainer, BoxLayout.Y_AXIS));
+        headerContainer.setOpaque(false);
+        headerContainer.setBorder(BorderFactory.createEmptyBorder(20, 50, 10, 50));
+
+        // Panel Judul Utama AMESA (Rounded)
+        RoundedPanel titlePanel = new RoundedPanel(PRIMARY_COLOR, 20);
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+        titlePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titlePanel.setBorder(BorderFactory.createEmptyBorder(15, 50, 15, 50));
+
+        JLabel titleLabel = new JLabel("AMESA");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 36));
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel subTitleLabel = new JLabel("Aplikasi Manajemen Harian");
+        subTitleLabel.setFont(new Font("Arial", Font.PLAIN, 20));
+        subTitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        titlePanel.add(titleLabel);
+        titlePanel.add(subTitleLabel);
+
+        // Info Kelompok dan Dosen
+        JLabel groupDosen = new JLabel("Kelompok 6, L1-Teknik Informatika | Dosen Pengampu: Femilia Hardina Caryn, M.Kom");
+        groupDosen.setFont(new Font("Arial", Font.PLAIN, 14));
+        groupDosen.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        headerContainer.add(titlePanel);
+        headerContainer.add(Box.createVerticalStrut(10));
+        headerContainer.add(groupDosen);
+        return headerContainer;
+    }
+
+
+    // --- 2. MAIN CONTENT ---
+    private JPanel createMainContentPanel() {
+        // ... (Kode Main Content tidak berubah) ...
+        JPanel contentPanel = new JPanel();
+        contentPanel.setOpaque(false);
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 50, 30, 50));
+
+        contentPanel.add(createInputDataPanel());
+        contentPanel.add(Box.createVerticalStrut(25));
+
+        contentPanel.add(createInputPengeluaranPanel());
+        contentPanel.add(Box.createVerticalStrut(25));
+
+        contentPanel.add(createLaporanPanel());
+        contentPanel.add(Box.createVerticalGlue());
+
+        return contentPanel;
+    }
+
+    // --- 2.1. Input Data Keuangan ---
+    private JPanel createInputDataPanel() {
+        // ... (Kode Input Data Keuangan tidak berubah) ...
+        JPanel inputDataPanel = new RoundedPanel(PRIMARY_COLOR, 15);
+        inputDataPanel.setLayout(new BoxLayout(inputDataPanel, BoxLayout.Y_AXIS));
+        inputDataPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+        JLabel title = createSectionTitle("Data Keuangan");
+        inputDataPanel.add(title);
+        inputDataPanel.add(Box.createVerticalStrut(10));
+
+        // Row 1: Input dan batas
+        JPanel inputRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        inputRow.setOpaque(false);
+
+        inputPemasukan = new JTextField(String.valueOf((int)manager.getPemasukanBulanan()), 10);
+        batasPengeluaran = new JTextField(ManajemenKeuangan.formatRupiah(manager.getBatasPengeluaranHarian()), 10);
+        batasPengeluaran.setEditable(false);
+
+        inputRow.add(new JLabel("Input Pemasukan Bulanan (Rp):"));
+        inputRow.add(inputPemasukan);
+        inputRow.add(new JLabel("Batas Pengeluaran Harian:"));
+        inputRow.add(batasPengeluaran);
+
+        inputDataPanel.add(inputRow);
+
+        // Row 2: Tombol
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        buttonRow.setOpaque(false);
+
+        JButton resetButton = new JButton("Reset semua data");
+        JButton updateButton = new JButton("Update Data");
+
+        JButton homeButton = new JButton("Home");
+        homeButton.setFont(new Font("Arial", Font.BOLD, 14));
+        homeButton.setBackground(new Color(150, 190, 220));
+        homeButton.setForeground(Color.DARK_GRAY);
+        homeButton.addActionListener(e -> {
+            dispose();
+            new AplikasiGUI().setVisible(true);
+        });
+
+        updateButton.addActionListener(e -> updatePemasukanData());
+        resetButton.addActionListener(e -> resetData());
+
+        buttonRow.add(homeButton);
+        buttonRow.add(resetButton);
+        buttonRow.add(updateButton);
+
+        inputDataPanel.add(buttonRow);
+
+        return inputDataPanel;
+    }
+
+    // --- 2.2. Input Pengeluaran Harian ---
+    private JPanel createInputPengeluaranPanel() {
+        JPanel inputPengeluaranPanel = new RoundedPanel(PRIMARY_COLOR, 15);
+        inputPengeluaranPanel.setLayout(new BoxLayout(inputPengeluaranPanel, BoxLayout.Y_AXIS));
+        inputPengeluaranPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+        JLabel title = createSectionTitle("Input Pengeluaran Harian");
+        inputPengeluaranPanel.add(title);
+        inputPengeluaranPanel.add(Box.createVerticalStrut(10));
+
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        row1.setOpaque(false);
+
+        // REVISI: Tanggal sekarang bisa diedit dan defaultnya hari ini
+        inputTanggal = new JTextField(LocalDate.now().format(DateTimeFormatter.ISO_DATE), 10);
+        inputTanggal.setEditable(true);
+        inputTanggal.setBackground(TEXT_FIELD_COLOR);
+        inputTanggal.setToolTipText("Format: YYYY-MM-DD");
+        // Listener untuk update laporan saat tanggal diubah dan user menekan Enter
+        inputTanggal.addActionListener(e -> updateLaporanDisplay());
+
+        row1.add(new JLabel("Tanggal Input (YYYY-MM-DD):"));
+        row1.add(inputTanggal);
+
+        // Pengeluaran dan Kategori
+        inputPengeluaranHarian = new JTextField(10);
+        String[] kategori = {"Makan", "Transportasi", "Kesehatan", "Hiburan", "Belanja", "Tagihan"};
+        kategoriComboBox = new JComboBox<>(kategori);
+
+        row1.add(new JLabel("Pengeluaran Hari Ini (Rp):"));
+        row1.add(inputPengeluaranHarian);
+        row1.add(new JLabel("Kategori:"));
+        row1.add(kategoriComboBox);
+
+        JButton tambahButton = new JButton("Tambah Pengeluaran");
+        tambahButton.addActionListener(e -> tambahPengeluaran());
+        row1.add(tambahButton);
+
+        JButton saveButton = new JButton("Save");
+        saveButton.setFont(new Font("Arial", Font.BOLD, 12));
+        saveButton.setBackground(new Color(100, 200, 100));
+        saveButton.setForeground(Color.WHITE);
+        saveButton.addActionListener(e -> simpanDataHarian());
+        row1.add(saveButton);
+
+        inputPengeluaranPanel.add(row1);
+
+        return inputPengeluaranPanel;
+    }
+
+    // --- 2.3. Laporan Keuangan Harian ---
+    private JPanel createLaporanPanel() {
+        JPanel laporanPanel = new RoundedPanel(PRIMARY_COLOR, 15);
+        laporanPanel.setLayout(new BoxLayout(laporanPanel, BoxLayout.Y_AXIS));
+        laporanPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+        // Judul diset saat updateLaporanDisplay() dipanggil
+        JLabel title = createSectionTitle("Laporan Keuangan Harian");
+        title.setName("LaporanTitle");
+        laporanPanel.add(title);
+        laporanPanel.add(Box.createVerticalStrut(10));
+
+        JPanel gridPanel = new JPanel(new GridLayout(6, 2, 10, 10));
+        gridPanel.setOpaque(false);
+
+        laporanPemasukan = createReadOnlyField();
+        laporanBatasPengeluaran = createReadOnlyField();
+        laporanTotalPengeluaran = createReadOnlyField();
+        laporanPersentase = createReadOnlyField();
+        laporanSisaUang = createReadOnlyField();
+        laporanStatus = createReadOnlyField();
+
+        gridPanel.add(new JLabel("Pemasukan Bulanan:")); gridPanel.add(laporanPemasukan);
+        gridPanel.add(new JLabel("Batas Pengeluaran Harian:")); gridPanel.add(laporanBatasPengeluaran);
+        gridPanel.add(new JLabel("Total Pengeluaran:")); gridPanel.add(laporanTotalPengeluaran);
+        gridPanel.add(new JLabel("Persentase dari batas:")); gridPanel.add(laporanPersentase);
+        gridPanel.add(new JLabel("Sisa Uang (Harian):")); gridPanel.add(laporanSisaUang);
+        gridPanel.add(new JLabel("Status:")); gridPanel.add(laporanStatus);
+
+        laporanPanel.add(gridPanel);
+        return laporanPanel;
+    }
+
+    // --- 3. LOGIKA APLIKASI ---
+
+    private void updatePemasukanData() {
+        // ... (Logika updatePemasukanData tidak berubah) ...
+        try {
+            double pemasukan = Double.parseDouble(inputPemasukan.getText().replaceAll("[^0-9.]", ""));
+
+            if (pemasukan <= 0) {
+                JOptionPane.showMessageDialog(this, "Pemasukan harus lebih dari 0.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            manager.setPemasukanBulanan(pemasukan);
+            batasPengeluaran.setText(ManajemenKeuangan.formatRupiah(manager.getBatasPengeluaranHarian()));
+
+            // Panggil update display dengan tanggal yang sedang ada di field input
+            updateLaporanDisplay();
+
+            JOptionPane.showMessageDialog(this, "Data Pemasukan berhasil di-update! Batas Harian: " + batasPengeluaran.getText(), "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Input Pemasukan tidak valid. Harap masukkan angka.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void tambahPengeluaran() {
+        LocalDate tanggalInput;
+        try {
+            // REVISI: Ambil dan parse tanggal dari input field
+            tanggalInput = LocalDate.parse(inputTanggal.getText(), DateTimeFormatter.ISO_DATE);
+        } catch (DateTimeParseException ex) {
+            JOptionPane.showMessageDialog(this, "Format tanggal tidak valid. Gunakan format YYYY-MM-DD.", "Error Tanggal", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try {
+            double pengeluaranBaru = Double.parseDouble(inputPengeluaranHarian.getText().replaceAll("[^0-9.]", ""));
+            double pemasukanBulanan = manager.getPemasukanBulanan();
+
+            if (pemasukanBulanan == 0.0) {
+                JOptionPane.showMessageDialog(this, "Harap input dan Update Pemasukan Bulanan terlebih dahulu.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (pengeluaranBaru <= 0) {
+                JOptionPane.showMessageDialog(this, "Pengeluaran harus lebih dari 0.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // --- 1. SIMULASI PENAMBAHAN SEMENTARA ---
+            // Hitung total pengeluaran untuk tanggal YANG DIPILIH
+            double currentTotal = manager.getTotalPengeluaranHariIni(tanggalInput);
+            double projectedTotal = currentTotal + pengeluaranBaru;
+
+            // --- 2. VALIDASI ERROR BERAT (Pengeluaran Harian > Pemasukan Bulanan) ---
+            if (projectedTotal > pemasukanBulanan) {
+                JOptionPane.showMessageDialog(this,
+                        "⚠️ ERROR BERAT: Total pengeluaran hari ini (" + manager.formatRupiah(projectedTotal) + ") MELEBIHI Pemasukan Bulanan Anda (" + manager.formatRupiah(pemasukanBulanan) + ")!",
+                        "ERROR: Batas Keuangan Terlampaui", JOptionPane.ERROR_MESSAGE);
+                return; // Batalkan penambahan
+            }
+
+            // --- 3. PROSES PENAMBAHAN PENGELUARAN ---
+            manager.tambahPengeluaran(tanggalInput, pengeluaranBaru); // Gunakan tanggalInput
+
+            // Perbarui tampilan laporan untuk tanggal yang baru diinput
+            updateLaporanDisplay(tanggalInput);
+
+            // --- 4. VALIDASI PERINGATAN (Logika Status Keuangan) ---
+            double batasHarian = manager.getBatasPengeluaranHarian();
+            if (projectedTotal > batasHarian) {
+                JOptionPane.showMessageDialog(this,
+                        "🚨 PERINGATAN: Pengeluaran tanggal " + tanggalInput + " melebihi Batas Harian (" + manager.formatRupiah(batasHarian) + "). Status: TIDAK AMAN!",
+                        "Peringatan Batas Harian", JOptionPane.WARNING_MESSAGE);
+            }
+
+            inputPengeluaranHarian.setText("");
+
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Input Pengeluaran tidak valid. Harap masukkan angka.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Overload: Jika dipanggil tanpa parameter, ambil tanggal dari input field
+    private void updateLaporanDisplay() {
+        LocalDate displayDate;
+        try {
+            displayDate = LocalDate.parse(inputTanggal.getText(), DateTimeFormatter.ISO_DATE);
+        } catch (DateTimeParseException e) {
+            // Jika input tanggal tidak valid, gunakan tanggal hari ini sebagai fallback
+            displayDate = LocalDate.now();
+        }
+        updateLaporanDisplay(displayDate);
+    }
+
+    // Metode utama untuk update Laporan Display
+    private void updateLaporanDisplay(LocalDate displayDate) {
+        // Menggunakan displayDate (Tanggal yang diinput/dipilih)
+        double totalPengeluaran = manager.getTotalPengeluaranHariIni(displayDate);
+        double pemasukan = manager.getPemasukanBulanan();
+        double batas = manager.getBatasPengeluaranHarian();
+
+        double persentase = (batas > 0) ? (totalPengeluaran / batas) * 100 : 0;
+
+        laporanPemasukan.setText(ManajemenKeuangan.formatRupiah(pemasukan));
+        laporanBatasPengeluaran.setText(ManajemenKeuangan.formatRupiah(batas));
+        laporanTotalPengeluaran.setText(ManajemenKeuangan.formatRupiah(totalPengeluaran));
+        laporanPersentase.setText(String.format("%.2f", persentase) + " %");
+        laporanSisaUang.setText(ManajemenKeuangan.formatRupiah(batas - totalPengeluaran));
+
+        manager.cekStatus(displayDate);
+        laporanStatus.setText(manager.getStatus());
+
+        // Update Title Laporan untuk mencerminkan tanggal yang ditampilkan
+        Component[] components = getContentPane().getComponents();
+        for (Component comp : components) {
+            if (comp instanceof JPanel) {
+                for (Component subComp : ((JPanel) comp).getComponents()) {
+                    if (subComp instanceof RoundedPanel) {
+                        Component[] roundedComps = ((RoundedPanel) subComp).getComponents();
+                        if (roundedComps.length > 0 && roundedComps[0] instanceof JLabel) {
+                            JLabel titleLabel = (JLabel) roundedComps[0];
+                            if ("LaporanTitle".equals(titleLabel.getName())) {
+                                titleLabel.setText("Laporan Keuangan Harian (" + displayDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy")) + ")");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void simpanDataHarian() {
+        LocalDate tanggalSimpan;
+        try {
+            tanggalSimpan = LocalDate.parse(inputTanggal.getText(), DateTimeFormatter.ISO_DATE);
+        } catch (DateTimeParseException ex) {
+            JOptionPane.showMessageDialog(this, "Format tanggal tidak valid. Gunakan format YYYY-MM-DD.", "Error Tanggal", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        double totalPengeluaran = manager.getTotalPengeluaranHariIni(tanggalSimpan);
+
+        if (totalPengeluaran == 0.0) {
+            JOptionPane.showMessageDialog(this, "Tidak ada pengeluaran untuk tanggal ini (" + tanggalSimpan + ") untuk disimpan.", "Perhatian", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JOptionPane.showMessageDialog(this,
+                "Total pengeluaran harian " + ManajemenKeuangan.formatRupiah(totalPengeluaran) + " untuk tanggal " + tanggalSimpan.format(DateTimeFormatter.ISO_DATE) + " berhasil dicatat ke sistem monitoring.",
+                "Save Success", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void resetData() {
+        manager.resetSemuaData();
+
+        JOptionPane.showMessageDialog(this,
+                "Data telah di-reset ke nilai default (Pemasukan: " + ManajemenKeuangan.formatRupiah(manager.getPemasukanBulanan()) + ") dan semua pengeluaran harian dihapus.",
+                "Reset Berhasil", JOptionPane.INFORMATION_MESSAGE);
+
+        // Reset tampilan UI setelah reset
+        inputPemasukan.setText(String.valueOf((int)manager.getPemasukanBulanan()));
+        batasPengeluaran.setText(ManajemenKeuangan.formatRupiah(manager.getBatasPengeluaranHarian()));
+        inputPengeluaranHarian.setText("");
+        inputTanggal.setText(LocalDate.now().format(DateTimeFormatter.ISO_DATE)); // Reset tanggal kembali ke hari ini
+
+        updateLaporanDisplay(LocalDate.now());
+    }
+
+    // --- 4. UTILITY COMPONENTS (Tidak Diubah) ---
+    private JLabel createSectionTitle(String text) {
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setFont(new Font("Arial", Font.BOLD, 18));
+        label.setAlignmentX(Component.CENTER_ALIGNMENT);
+        return label;
+    }
+
+    private JTextField createReadOnlyField() {
+        JTextField field = new JTextField(15);
+        field.setEditable(false);
+        field.setBackground(TEXT_FIELD_COLOR);
+        return field;
+    }
+
+    // Inner Class untuk Gradient Background
+    private class GradientPanel extends JPanel {
+        private Color color1;
+        private Color color2;
+        public GradientPanel(Color c1, Color c2) {
+            this.color1 = c1;
+            this.color2 = c2;
+        }
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2d = (Graphics2D) g;
+            int w = getWidth();
+            int h = getHeight();
+            GradientPaint gp = new GradientPaint(0, 0, color1, 0, h, color2);
+            g2d.setPaint(gp);
+            g2d.fillRect(0, 0, w, h);
+        }
+    }
+
+    // Inner Class untuk Panel Rounded Corner (RoundedPanel)
+    private class RoundedPanel extends JPanel {
+        private Color backgroundColor;
+        private int cornerRadius;
+        public RoundedPanel(Color color, int radius) {
+            this.backgroundColor = color;
+            this.cornerRadius = radius;
+            setOpaque(false);
+        }
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Dimension arcs = new Dimension(cornerRadius, cornerRadius);
+            int width = getWidth();
+            int height = getHeight();
+            Graphics2D graphics = (Graphics2D) g;
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setColor(backgroundColor);
+            graphics.fill(new RoundRectangle2D.Float(0, 0, width-1, height-1, arcs.width, arcs.height));
+        }
+    }
+}
